@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	testClient      *Client
-	testServerToken = "some_token"
-	testProducts    = []*Product{
+	testClient   *Client
+	testToken    = "some_token"
+	testProducts = []*Product{
 		&Product{
 			ProductId:   "1",
 			Description: "The Original Uber",
