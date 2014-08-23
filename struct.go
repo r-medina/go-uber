@@ -1,13 +1,5 @@
 package uber
 
-// Client stores the tokens needed to access the Uber api.
-// All methods of this package that hit said api are methods on this type.
-type Client struct {
-	// TODO(asubiott): document these
-	serverToken string
-	accessToken string
-}
-
 // Product type specifies an Uber product.
 // An Uber product refers to a specific type of car/service.
 type Product struct {
@@ -90,8 +82,8 @@ type Location struct {
 	Longitude float64 `json:"longitude"`
 }
 
-// UserHistory
-type UserHistory struct {
+// UserActivity contains data about a user's lifetime activity with Uber.
+type UserActivity struct {
 	// How much the list of returned results is offset by (position in pagination)
 	// eg: 0
 	Offset int `json:"offset"`
