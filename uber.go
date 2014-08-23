@@ -1,6 +1,11 @@
-// The uber package provides an api client for the Uber api,
-// with methods to get information about Uber products,
-// estimates, times, and users.
+/*
+The uber package provides an api client for the Uber api.
+It exposes methods to get information about Uber products,
+estimates, times, and users.
+
+A lot of documentation will be pulled directly from
+https://developer.uber.com/v1/endpoints
+*/
 package uber
 
 import (
@@ -27,13 +32,18 @@ var UBER_API_ENDPOINT = fmt.Sprintf("http://api.uber.com/%s", VERSION)
 // Creates a new client. When accessing a user's profile or activity an
 // access token must be specified with the correct scope. If these endpoints
 // are not needed, an empty string should be passed in.
-func NewClient(server_token, access_token string) *Client {
+// TODO(asubiott): maybe this function should do the OAuth things
+func NewClient(serverToken, accessToken string) *Client {
 	return &Client{
-		server_token: server_token,
-		access_token: access_token,
+		serverToken: serverToken,
+		accessToken: accessToken,
 	}
 }
 
+// GetPoducts returns information about the Uber products offered at a
+// given location. The response includes the display name and other details about
+// each product, and lists the products in the proper display order.
+// https://developer.uber.com/v1/endpoints/#product-types
 func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	payload := productsReq{
 		latitude:  lat,
@@ -46,10 +56,10 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	}
 
 	res, err := http.Get(addr)
+	defer res.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
 	products := new([]*Product)
 	decoder := json.NewDecoder(res.Body)
@@ -61,6 +71,15 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	return *products, nil
 }
 
+// GetPrices returns an estimated price range for each product offered at a given
+// location. The price estimate is provided as a formatted string with the full price
+// range and the localized currency symbol.
+//
+// The response also includes low and high estimates, and the ISO 4217 currency code
+// for situations requiring currency conversion. When surge is active for a
+// particular product, its surge_multiplier will be greater than 1, but the price
+// estimate already factors in this multiplier.
+// https://developer.uber.com/v1/endpoints/#price-estimates
 func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price, error) {
 	payload := pricesReq{
 		startLatitude:  startLat,
@@ -75,10 +94,10 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 	}
 
 	res, err := http.Get(addr)
+	defer res.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
 	prices := new([]*Price)
 	decoder := json.NewDecoder(res.Body)
@@ -90,6 +109,9 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 	return *prices, nil
 }
 
+// GetTimes returns ETAs for all products offered at a given location, with the responses
+// expressed as integers in seconds. We recommend that this endpoint be called every
+// minute to provide the most accurate, up-to-date ETAs.
 func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([]*Time, error) {
 	payload := timesReq{
 		startLatitude:  startLat,
@@ -104,10 +126,10 @@ func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([
 	}
 
 	res, err := http.Get(addr)
+	defer res.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
 	times := new([]*Time)
 	decoder := json.NewDecoder(res.Body)
@@ -119,21 +141,23 @@ func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([
 	return *times, nil
 }
 
+// GetUserProfile returns information about the Uber user that has authorized with
+// the application.
 func (c *Client) GetUserProfile() (*User, error) {
 	addr, err := c.generateRequestUrl(USER_ENDPOINT, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO(asubiott): Should there be a check for correct access_token scope?
+	// TODO(asubiott): Should there be a check for correct accessToken scope?
 	// This might be taken care of for us by the Uber API. It should return
 	// an error.
 
 	res, err := c.sendRequestWithAuthorization(addr)
+	defer res.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
 	user := new(User)
 	decoder := json.NewDecoder(res.Body)
@@ -145,40 +169,47 @@ func (c *Client) GetUserProfile() (*User, error) {
 	return user, nil
 }
 
-// Sends an HTTP GET request with an Authorization field in the header
-// containing the Client's access token.
+// sendRequestWithAuthorization sends an HTTP GET request with an Authorization field
+// in the header containing the Client's access token.
 func (c *Client) sendRequestWithAuthorization(url string) (*http.Response, error) {
-	http_client := &http.Client{}
+	httpClient := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer: %s", c.access_token))
-	return http_client.Do(req)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer: %s", c.accessToken))
+	return httpClient.Do(req)
 }
 
-func (c *Client) generateRequestUrl(endpoint string, data interface{}) (string, error) {
+// generateRequestUrl returns the appropriate a request url to the Uber api based on
+// the specified endpoint and the data passed in
+func (c *Client) generateRequestUrl(endpoint string, data uberApiRequest) (string, error) {
 	payload, err := c.generateRequestUrlHelper(reflect.ValueOf(data))
 	if err != nil {
 		return "", err
 	}
 
-	payload.Add("server_token", c.server_token)
+	payload.Add("server_token", c.serverToken)
+
 	// TODO(asubiott): Check if it is harmful in any way to specify the access_token
 	// as an empty string and keep the server_token around when we need the access_token.
 
 	return fmt.Sprintf("%s/%s?%s", UBER_API_ENDPOINT, endpoint, payload.Encode()), nil
 }
 
+// generateRequestUrlHelper recursively checks `val` to generate the payload. Should
+// be used with caution. Only `Client.generateRequestUrl` calls this.
 func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error) {
 	payload := make(url.Values)
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := val.Type().Field(i).Name
 		queryTag := strings.Split(val.Type().Field(i).Tag.Get("query"), ",")
+		// TODO(rm): write a better parser for a query tag--shouldn't just look at
+		// position
 		if len(queryTag) > 1 && queryTag[1] == "required" {
 			if val.Field(i).String() == "" {
-				if fieldName == "serverToken" && c.server_token != "" {
+				if fieldName == "serverToken" && c.serverToken != "" {
 					continue
 				}
 				return nil, errors.New(fmt.Sprintf("%s is a required field", fieldName))

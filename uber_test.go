@@ -67,3 +67,7 @@ func getPricesHandler(rw http.ResponseWriter, req *http.Request) {
 	body, _ := json.Marshal(testPrices)
 	rw.Write(body)
 }
+
+// TODO: test `GetTimes`, `NewClient`, `GetUserProfile`,
+// `sendRequestWithAuthorization`, `generateRequestUrl`, and
+// `generateRequestUrlHelper`
