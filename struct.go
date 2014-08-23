@@ -1,32 +1,95 @@
 package uber
 
+// Client stores the tokens needed to access the Uber api.
+// All methods of this package that hit said api are methods on this type.
 type Client struct {
+	// TODO(asubiott): document these
 	server_token string
 	access_token string
 }
 
+// Product type specifies an Uber product.
+// An Uber product refers to a specific type of car/service.
 type Product struct {
-	ProductId   string `json:"product_id"`
+	// eg: "327f7914-cd12-4f77-9e0c-b27bac580d03"
+	ProductId string `json:"product_id"`
+
+	// eg: "The original Uber"
 	Description string `json:"description"`
+
+	// eg: "UberBLACK"
 	DisplayName string `json:"display_name"`
-	Capacity    int    `json:"capacity"`
-	Image       string `json:"image"`
+
+	// eg: 4
+	Capacity int `json:"capacity"`
+
+	// A URI specifying the location of an image
+	// eg: "http://..."
+	Image string `json:"image"`
 }
 
+// Price contains information about a price estimate
 type Price struct {
-	ProductId       string  `json:"product_id"`
-	CurrencyCode    string  `json:"currency_code"`
-	DisplayName     string  `json:"display_name"`
-	Estimate        string  `json:"estimate"`
-	LowEstimate     int     `json:"low_estimate"`
-	HighEstimate    int     `json:"high_estimate"`
+	// eg: "08f17084-23fd-4103-aa3e-9b660223934b"
+	ProductId string `json:"product_id"`
+
+	// ISO 4217 currency code for situations requiring currency conversion
+	// eg: "USD"
+	CurrencyCode string `json:"currency_code"`
+
+	// eg: "UberBLACK"
+	DisplayName string `json:"display_name"`
+
+	// A human-readable price estimate
+	// eg: "$23-29"
+	Estimate string `json:"estimate"`
+
+	// The lowest value in the estimate for the given currency
+	// eg: 23
+	LowEstimate int `json:"low_estimate"`
+
+	// The highest value in the estimate for the given currency
+	// eg: 29
+	HighEstimate int `json:"high_estimate"`
+
+	// Uber price gouging factor
+	// http://www.technologyreview.com/review/529961/in-praise-of-efficient-price-gouging/
+	// eg: 1
 	SurgeMultiplier float64 `json:"surge_multiplier"`
 }
 
+// Time contains information about the estimated time of arrival for a product at a
+// given location in seconds
 type Time struct {
-	ProductId   string `json:"product_id"`
+	// eg: "5f41547d-805d-4207-a297-51c571cf2a8c"
+	ProductId string `json:"product_id"`
+
+	// eg: "UberBLACK"
 	DisplayName string `json:"display_name"`
-	Estimate    int    `json:"estimate"`
+
+	// The ETA in seconds
+	// eg: 410, ie: 6 minutes and 50 seconds
+	Estimate int `json:"estimate"`
+}
+
+// Location contains a human-readable address as well as the exact coordinates of a location
+type Location struct {
+	// Human-readable address
+	// eg: "706 Mission St, San Francisco, CA"
+	Address string `json:"address"`
+
+	// eg: 37.7860099
+	Latitude float64 `json:"latitude"`
+
+	// eg: -122.4025387
+	Longitude float64 `json:"longitude"`
+}
+
+type UserHistory struct {
+	Offset  int     `json:"offset"`
+	Limit   int     `json:"limit"`
+	Count   int     `json:"count"`
+	History []*Trip `json:"history"`
 }
 
 type Trip struct {
@@ -39,19 +102,6 @@ type Trip struct {
 	StartLocation *Location `json:"start_location"`
 	EndTime       int       `json:"end_time"`
 	EndLocation   *Location `json:"end_location"`
-}
-
-type Location struct {
-	Address   string  `json:"address"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-}
-
-type UserHistory struct {
-	Offset  int     `json:"offset"`
-	Limit   int     `json:"limit"`
-	Count   int     `json:"count"`
-	History []*Trip `json:"history"`
 }
 
 type User struct {

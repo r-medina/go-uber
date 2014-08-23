@@ -1,6 +1,11 @@
-// The uber package provides an api client for the Uber api,
-// with methods to get information about Uber products,
-// estimates, times, and users.
+/*
+The uber package provides an api client for the Uber api.
+It exposes methods to get information about Uber products,
+estimates, times, and users.
+
+A lot of documentation will be pulled directly from
+https://developer.uber.com/v1/endpoints
+*/
 package uber
 
 import (
@@ -34,6 +39,10 @@ func NewClient(server_token, access_token string) *Client {
 	}
 }
 
+// GetPoducts returns information about the Uber products offered at a
+// given location. The response includes the display name and other details about
+// each product, and lists the products in the proper display order.
+// https://developer.uber.com/v1/endpoints/#product-types
 func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	payload := productsReq{
 		latitude:  lat,
@@ -61,6 +70,15 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	return *products, nil
 }
 
+// GetPrices returns an estimated price range for each product offered at a given
+// location. The price estimate is provided as a formatted string with the full price
+// range and the localized currency symbol.
+//
+// The response also includes low and high estimates, and the ISO 4217 currency code
+// for situations requiring currency conversion. When surge is active for a
+// particular product, its surge_multiplier will be greater than 1, but the price
+// estimate already factors in this multiplier.
+// https://developer.uber.com/v1/endpoints/#price-estimates
 func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price, error) {
 	payload := pricesReq{
 		startLatitude:  startLat,
@@ -90,6 +108,9 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 	return *prices, nil
 }
 
+// GetTimes returns ETAs for all products offered at a given location, with the responses
+// expressed as integers in seconds. We recommend that this endpoint be called every
+// minute to provide the most accurate, up-to-date ETAs.
 func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([]*Time, error) {
 	payload := timesReq{
 		startLatitude:  startLat,
