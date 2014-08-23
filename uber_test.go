@@ -2,6 +2,7 @@ package uber
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,6 +35,9 @@ var (
 
 func TestNewClient(t *testing.T) {
 	testClient = NewClient(testServerToken, "" /* Empty access_token */)
+	if testClient.serverToken != testServerToken {
+		t.Fatal(fmt.Sprintf("Client.serverToken %s does not match %s", testClient.serverToken, testServerToken))
+	}
 }
 
 func TestGetProducts(t *testing.T) {
@@ -68,6 +72,46 @@ func getPricesHandler(rw http.ResponseWriter, req *http.Request) {
 	rw.Write(body)
 }
 
-// TODO: test `GetTimes`, `NewClient`, `GetUserProfile`,
-// `sendRequestWithAuthorization`, `generateRequestUrl`, and
+func TestGetTimes(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func getTimesHandler(rw http.ResponseWriter, req *http.Request) {
+
+}
+
+func TestGetUserActivity(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func getUserActivityHandler(rw http.ResponseWriter, req *http.Request) {
+
+}
+
+func TestGetUserProfile(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func getUserProfileHandler(rw http.ResponseWriter, req *http.Request) {
+
+}
+
+func TestGet(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func TestSendRequestWithAuthorization(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func TestGenerateRequestUrl(t *testing.T) {
+	t.Fatal("no test")
+}
+
+func TestGenerateRequestUrlHelper(t *testing.T) {
+	t.Fatal("no test")
+}
+
+// TODO: test `GetTimes`, `GetUserActivity`, `GetUserProfile`,
+// `get`, `sendRequestWithAuthorization`, `generateRequestUrl`, and
 // `generateRequestUrlHelper`

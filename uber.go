@@ -29,6 +29,14 @@ const (
 
 var UBER_API_ENDPOINT = fmt.Sprintf("http://api.uber.com/%s", VERSION)
 
+// Client stores the tokens needed to access the Uber api.
+// All methods of this package that hit said api are methods on this type.
+type Client struct {
+	// TODO(asubiott): document these
+	serverToken string
+	accessToken string
+}
+
 // Creates a new client. When accessing a user's profile or activity an
 // access token must be specified with the correct scope. If these endpoints
 // are not needed, an empty string should be passed in.
@@ -50,21 +58,8 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 		longitude: lon,
 	}
 
-	addr, err := c.generateRequestUrl(PRODUCT_ENDPOINT, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := http.Get(addr)
-	defer res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
 	products := new([]*Product)
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(products)
-	if err != nil {
+	if err := c.get(PRODUCT_ENDPOINT, payload, products); err != nil {
 		return nil, err
 	}
 
@@ -88,21 +83,8 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 		endLongitude:   endLon,
 	}
 
-	addr, err := c.generateRequestUrl(PRICE_ENDPOINT, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := http.Get(addr)
-	defer res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
 	prices := new([]*Price)
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(prices)
-	if err != nil {
+	if err := c.get(PRICE_ENDPOINT, payload, prices); err != nil {
 		return nil, err
 	}
 
@@ -120,53 +102,67 @@ func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([
 		productId:      productId,
 	}
 
-	addr, err := c.generateRequestUrl(TIME_ENDPOINT, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := http.Get(addr)
-	defer res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
 	times := new([]*Time)
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(times)
-	if err != nil {
+	if err := c.get(TIME_ENDPOINT, payload, times); err != nil {
 		return nil, err
 	}
 
 	return *times, nil
 }
 
+// GetHistory returns data about a user's lifetime activity with Uber. The response
+// will include pickup locations and times, dropoff locations and times, the distance
+// of past requests, and information about which products were requested.
+func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
+	payload := historyReq{
+		offset: offset,
+		limit:  limit,
+	}
+
+	userActivity := new(UserActivity)
+	if err := c.get(TIME_ENDPOINT, payload, userActivity); err != nil {
+		return nil, err
+	}
+
+	return userActivity, nil
+}
+
 // GetUserProfile returns information about the Uber user that has authorized with
 // the application.
 func (c *Client) GetUserProfile() (*User, error) {
-	addr, err := c.generateRequestUrl(USER_ENDPOINT, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO(asubiott): Should there be a check for correct accessToken scope?
 	// This might be taken care of for us by the Uber API. It should return
 	// an error.
-
-	res, err := c.sendRequestWithAuthorization(addr)
-	defer res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
 	user := new(User)
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(user)
-	if err != nil {
+	if err := c.get(USER_ENDPOINT, nil, user); err != nil {
 		return nil, err
 	}
 
 	return user, nil
+}
+
+// get helps facilitate all the get requests to the Uber api.
+// Takes the endpoing, the query parameters, and the data structure that the JSON
+// response should be unmarshalled into
+func (c *Client) get(endpoint string, payload uberApiRequest, out interface{}) error {
+	addr, err := c.generateRequestUrl(endpoint, payload)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.sendRequestWithAuthorization(addr)
+	defer res.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // sendRequestWithAuthorization sends an HTTP GET request with an Authorization field
