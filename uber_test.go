@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	testClient   *Client
-	testToken    = "some_token"
-	testProducts = []*Product{
+	testClient      *Client
+	testServerToken = "some_token"
+	testProducts    = []*Product{
 		&Product{
 			ProductId:   "1",
 			Description: "The Original Uber",
@@ -67,3 +67,7 @@ func getPricesHandler(rw http.ResponseWriter, req *http.Request) {
 	body, _ := json.Marshal(testPrices)
 	rw.Write(body)
 }
+
+// TODO: test `GetTimes`, `NewClient`, `GetUserProfile`,
+// `sendRequestWithAuthorization`, `generateRequestUrl`, and
+// `generateRequestUrlHelper`

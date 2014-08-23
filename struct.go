@@ -4,16 +4,20 @@ package uber
 // All methods of this package that hit said api are methods on this type.
 type Client struct {
 	// TODO(asubiott): document these
-	server_token string
-	access_token string
+	serverToken string
+	accessToken string
 }
 
 // Product type specifies an Uber product.
 // An Uber product refers to a specific type of car/service.
 type Product struct {
+	// Unique identifier representing a specific product for a given latitude &
+	// longitude. For example, uberX in San Francisco will have a different
+	// product_id than uberX in Los Angeles.
 	// eg: "327f7914-cd12-4f77-9e0c-b27bac580d03"
 	ProductId string `json:"product_id"`
 
+	// Description of product
 	// eg: "The original Uber"
 	Description string `json:"description"`
 
@@ -40,7 +44,8 @@ type Price struct {
 	// eg: "UberBLACK"
 	DisplayName string `json:"display_name"`
 
-	// A human-readable price estimate
+	// Formatted string of estimate in local currency of the start location. Estimate
+	// could be a range, a single number (flat rate) or "Metered" for TAXI.
 	// eg: "$23-29"
 	Estimate string `json:"estimate"`
 
@@ -85,34 +90,92 @@ type Location struct {
 	Longitude float64 `json:"longitude"`
 }
 
+// UserHistory
 type UserHistory struct {
-	Offset  int     `json:"offset"`
-	Limit   int     `json:"limit"`
-	Count   int     `json:"count"`
+	// How much the list of returned results is offset by (position in pagination)
+	// eg: 0
+	Offset int `json:"offset"`
+
+	// Number of items retrieved (that is, the length of `History` in this struct,
+	// but not the total length of the history)
+	// eg: 1
+	Limit int `json:"limit"`
+
+	// Total number of items available
+	// eg: 5
+	Count int `json:"count"`
+
+	// List of trips (see `Trip`)
 	History []*Trip `json:"history"`
 }
 
+// Trip contains Information including the pickup location, dropoff location, request
+// start time, request end time, and distance of requests (in miles), as well as the
+// product type that was requested
 type Trip struct {
-	Uuid          string    `json:"uuid"`
-	RequestTime   int       `json:"request_time"`
-	ProductId     string    `json:"product_id"`
-	Status        string    `json:"status"`
-	Distance      float64   `json:"distance"`
-	StartTime     int       `json:"start_time"`
+	// Customer UUID
+	// eg: "7354db54-cc9b-4961-81f2-0094b8e2d215"
+	Uuid string `json:"uuid"`
+
+	// Time in seconds
+	// TODO(rm): find out more about this
+	// eg: 1401884467
+	RequestTime int `json:"request_time"`
+
+	// eg: edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c
+	ProductId string `json:"product_id"`
+
+	// String depicting the status of the trip. Don't know what values these could take
+	// because the website only shows "completed"
+	// eg: "completed"
+	Status string `json:"status"`
+
+	// Distance of request in miles (presumable that of the customer to he nearest driver)
+	// eg: 0.0279562
+	Distance float64 `json:"distance"`
+
+	// Start time of trip
+	// See TODO for `RequestTime`
+	// eg: 1401884646
+	StartTime int `json:"start_time"`
+
+	// Self explanatory (see `Location`)
 	StartLocation *Location `json:"start_location"`
-	EndTime       int       `json:"end_time"`
-	EndLocation   *Location `json:"end_location"`
+
+	// Start time of trip
+	// See TODO for `RequestTime`
+	// eg: 1401884732
+	EndTime int `json:"end_time"`
+
+	// Self explanatory (see `Location`)
+	EndLocation *Location `json:"end_location"`
 }
 
 type User struct {
+	// eg: "Uber"
 	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Picture   string `json:"picture"`
+
+	// eg: "Developer"
+	LastName string `json:"last_name"`
+
+	// eg: "developer@uber.com"
+	Email string `json:"email"`
+
+	// Image URI
+	// eg: "https://..."
+	Picture string `json:"picture"`
+
+	// Promotion code user has activated
+	// eg: "teypo"
 	PromoCode string `json:"promo_code"`
 }
 
+// uberApiRequest is a shell data definition that is just used to document that
+// `Client.generateRequestUrl` takes a specific type of data
+type uberApiRequest interface{}
+
 type req struct {
+	// TODO(asubiott): support OAuth bearer tokens too
 	serverToken string `query:"server_token,required"`
 }
 
@@ -134,11 +197,11 @@ type timesReq struct {
 	req
 	startLatitude  float64 `query:"start_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
-	customerUuid   string  `query:"customer_uuid,required"`
-	productId      string  `query:"product_id,required"`
+	customerUuid   string  `query:"customer_uuid"`
+	productId      string  `query:"product_id"`
 }
 
 type historyReq struct {
-	offset int `query:"offset, required"`
-	limit  int `query:"limit, required"`
+	offset int `query:"offset,required"`
+	limit  int `query:"limit,required"`
 }
