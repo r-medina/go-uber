@@ -46,8 +46,9 @@ type Client struct {
 	accessToken string
 }
 
-// Creates a new client. When accessing a user's profile or activity an
-// access token must be specified with the correct scope. If these endpoints
+// Creates a new client. The serverToken is your API token provided by Uber.
+// When accessing a user's profile or activity a serverToken is not enough and an
+// accessToken must be specified with the correct scope. If these endpoints
 // are not needed, an empty string should be passed in.
 func NewClient(serverToken, accessToken string) *Client {
 	return &Client{
@@ -67,7 +68,7 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	}
 
 	products := new([]*Product)
-	if err := c.get(PRODUCT_ENDPOINT, payload, products); err != nil {
+	if err := c.get(PRODUCT_ENDPOINT, payload, false, products); err != nil {
 		return nil, err
 	}
 
@@ -92,7 +93,7 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 	}
 
 	prices := new([]*Price)
-	if err := c.get(PRICE_ENDPOINT, payload, prices); err != nil {
+	if err := c.get(PRICE_ENDPOINT, payload, false, prices); err != nil {
 		return nil, err
 	}
 
@@ -102,7 +103,8 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 // GetTimes returns ETAs for all products offered at a given location, with the responses
 // expressed as integers in seconds. We recommend that this endpoint be called every
 // minute to provide the most accurate, up-to-date ETAs.
-// TODO(asubiott): Specify that uuid and productId are optional.
+// The uuid and productId parameters can be empty strings. These provide
+// additional experience customization.
 func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([]*Time, error) {
 	payload := timesReq{
 		startLatitude:  startLat,
@@ -112,7 +114,7 @@ func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([
 	}
 
 	times := new([]*Time)
-	if err := c.get(TIME_ENDPOINT, payload, times); err != nil {
+	if err := c.get(TIME_ENDPOINT, payload, false, times); err != nil {
 		return nil, err
 	}
 
@@ -129,7 +131,7 @@ func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
 	}
 
 	userActivity := new(UserActivity)
-	if err := c.get(TIME_ENDPOINT, payload, userActivity); err != nil {
+	if err := c.get(TIME_ENDPOINT, payload, true, userActivity); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +143,7 @@ func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
 func (c *Client) GetUserProfile() (*User, error) {
 	payload := userReq{}
 	user := new(User)
-	if err := c.get(USER_ENDPOINT, payload, user); err != nil {
+	if err := c.get(USER_ENDPOINT, payload, true, user); err != nil {
 		return nil, err
 	}
 
@@ -149,15 +151,15 @@ func (c *Client) GetUserProfile() (*User, error) {
 }
 
 // get helps facilitate all the get requests to the Uber api.
-// Takes the endpoing, the query parameters, and the data structure that the JSON
-// response should be unmarshalled into
-func (c *Client) get(endpoint string, payload uberApiRequest, out interface{}) error {
-	addr, err := c.generateRequestUrl(endpoint, payload)
+// Takes the endpoint, the query parameters, whether or not oauth should be used
+// and the data structure that the JSON response should be unmarshalled into.
+func (c *Client) get(endpoint string, payload uberApiRequest, oauth bool, out interface{}) error {
+	url, err := c.generateRequestUrl(endpoint, payload)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.sendRequestWithAuthorization(addr)
+	res, err := c.sendRequestWithAuthorization(url, oauth)
 	if err != nil {
 		return err
 	}
@@ -173,15 +175,21 @@ func (c *Client) get(endpoint string, payload uberApiRequest, out interface{}) e
 }
 
 // sendRequestWithAuthorization sends an HTTP GET request with an Authorization
-// field in the header containing the Client's access token (bearer token).
-func (c *Client) sendRequestWithAuthorization(url string) (*http.Response, error) {
+// field in the header containing the Client's access token (bearer token) if
+// the oauth parameter is true and the server token (api token) if not.
+func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Response, error) {
 	httpClient := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer: %s", c.accessToken))
+	if oauth {
+        req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+    } else {
+        req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.serverToken))
+    }
+
 	return httpClient.Do(req)
 }
 
@@ -192,11 +200,6 @@ func (c *Client) generateRequestUrl(endpoint string, data uberApiRequest) (strin
 	if err != nil {
 		return "", err
 	}
-
-	payload.Add("server_token", c.serverToken)
-
-	// TODO(asubiott): Check if it is harmful in any way to specify the access_token
-	// as an empty string and keep the server_token around when we need the access_token.
 
 	return fmt.Sprintf("%s/%s?%s", UBER_API_ENDPOINT, endpoint, payload.Encode()), nil
 }
@@ -210,13 +213,8 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 		queryTag := strings.Split(val.Type().Field(i).Tag.Get("query"), ",")
 		// TODO(rm): write a better parser for a query tag--shouldn't just look at
 		// position
-		if len(queryTag) > 1 && queryTag[1] == "required" {
-			if val.Field(i).String() == "" {
-				if fieldName == "serverToken" && c.serverToken != "" {
-					continue
-				}
-				return nil, errors.New(fmt.Sprintf("%s is a required field", fieldName))
-			}
+		if len(queryTag) > 1 && queryTag[1] == "required" && val.Field(i).String() == "" {
+            return nil, errors.New(fmt.Sprintf("%s is a required field", fieldName))
 		}
 
 		var v interface{}
