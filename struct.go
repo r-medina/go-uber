@@ -162,10 +162,6 @@ type User struct {
 	PromoCode string `json:"promo_code"`
 }
 
-// uberApiRequest is a shell data definition that is just used to document that
-// `Client.generateRequestUrl` takes a specific type of data
-type uberApiRequest interface{}
-
 type productsReq struct {
 	latitude  float64 `query:"latitude,required"`
 	longitude float64 `query:"longitude,required"`
@@ -185,9 +181,26 @@ type timesReq struct {
 	productId      string  `query:"product_id"`
 }
 
+type userReq struct{}
+
 type historyReq struct {
 	offset int `query:"offset,required"`
 	limit  int `query:"limit,required"`
 }
 
-type userReq struct{}
+// uberError implements the error interface (by defining an `Error() string` method).
+// This datatype is returned from the Uber api with non-2xx responses
+type uberError struct {
+	// Human readable message which corresponds to the client error
+	// eg: "Invalid user"
+	Message string `json:"message"`
+
+	// Underscored delimited string
+	// eg: "invalid"
+	Code string `json:"code"`
+
+	// A hash of field names that have validations. This has a value of an array with
+	// member strings that describe the specific validation error
+	// eg: map{"first_name": ["Required"]}
+	Fields map[string][]string `json:"fields,omitempty"`
+}
