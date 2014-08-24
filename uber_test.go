@@ -166,7 +166,32 @@ func TestGet(t *testing.T) {
 }
 
 func TestSendRequestWithAuthorization(t *testing.T) {
-	t.Fatal("no test")
+	server := httptest.NewServer(http.HandlerFunc(sendRequestWithAuthorizationHandler))
+    defer server.Close()
+
+    // Send with only serverToken i.e. oauth is false
+    res, err := testClient.sendRequestWithAuthorization(server.URL, false);
+    if err != nil {
+        t.Fatal(err)
+    }
+    auth := res.Request.Header.Get("Authorization")
+    if auth == "" || auth != fmt.Sprintf("Token %s", testServerToken) {
+        t.Fatal("Server token not found in header")
+    }
+
+    // Send with only accessToken i.e. oauth is true
+    res, err = testClient.sendRequestWithAuthorization(server.URL, true);
+    if err != nil {
+        t.Fatal(err)
+    }
+    auth = res.Request.Header.Get("Authorization")
+    if auth == "" || auth != fmt.Sprintf("Bearer %s", testAccessToken) {
+        t.Fatal("Access token not found in header")
+    }
+}
+
+func sendRequestWithAuthorizationHandler(rw http.ResponseWriter, req *http.Request) {
+    rw.Write([]byte{0})
 }
 
 func TestGenerateRequestUrl(t *testing.T) {
@@ -177,5 +202,4 @@ func TestGenerateRequestUrlHelper(t *testing.T) {
 	t.Fatal("no test")
 }
 
-// TODO: test `get`, `sendRequestWithAuthorization`, `generateRequestUrl`, and
-// `generateRequestUrlHelper`
+// TODO: test `get`, `generateRequestUrl`, and `generateRequestUrlHelper`

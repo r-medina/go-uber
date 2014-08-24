@@ -166,19 +166,12 @@ type User struct {
 // `Client.generateRequestUrl` takes a specific type of data
 type uberApiRequest interface{}
 
-type req struct {
-	// TODO(asubiott): support OAuth bearer tokens too
-	serverToken string `query:"server_token,required"`
-}
-
 type productsReq struct {
-	req
 	latitude  float64 `query:"latitude,required"`
 	longitude float64 `query:"longitude,required"`
 }
 
 type pricesReq struct {
-	req
 	startLatitude  float64 `query:"start_latitude,required"`
 	endLatitude    float64 `query:"end_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
@@ -186,7 +179,6 @@ type pricesReq struct {
 }
 
 type timesReq struct {
-	req
 	startLatitude  float64 `query:"start_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
 	customerUuid   string  `query:"customer_uuid"`
