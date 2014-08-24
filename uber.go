@@ -1,14 +1,13 @@
-/*
-The uber package provides an api client for the Uber api.
-It exposes methods to get information about Uber products,
-estimates, times, and users.
+// The uber package provides an api client for the Uber api.
+// It exposes methods to get information about Uber products,
+// estimates, times, and users.
 
-A lot of documentation will be pulled directly from
-https://developer.uber.com/v1/endpoints
-*/
+// A lot of documentation will be pulled directly from
+// https://developer.uber.com/v1/endpoints
 package uber
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,6 +165,25 @@ func (c *Client) get(endpoint string, payload uberApiRequest, oauth bool, out in
 	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
+
+	// If the status code is non-2xx, generate the error
+	switch {
+	case res.StatusCode == http.StatusNotFound: // should never, ever happen because we specify the endpoints
+		return &uberError{
+			Message: fmt.Sprintf("Endpoint '%s' not found.", endpoint),
+		}
+	case res.StatusCode >= 300: // no good way to do this with `http.Status...` codes ;o
+		uberErr := new(uberError)
+		if err := decoder.Decode(uberErr); err != nil {
+			return err
+		}
+		// the case where the Uber api didn't provide an UberError in the response
+		if uberErr == (&uberError{}) {
+			return errors.New("uber: an unidentified error occured")
+		}
+		return *uberErr
+	}
+
 	err = decoder.Decode(out)
 	if err != nil {
 		return err
@@ -185,10 +203,10 @@ func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Res
 	}
 
 	if oauth {
-        req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
-    } else {
-        req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.serverToken))
-    }
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	} else {
+		req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.serverToken))
+	}
 
 	return httpClient.Do(req)
 }
@@ -211,11 +229,6 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := val.Type().Field(i).Name
 		queryTag := strings.Split(val.Type().Field(i).Tag.Get("query"), ",")
-		// TODO(rm): write a better parser for a query tag--shouldn't just look at
-		// position
-		if len(queryTag) > 1 && queryTag[1] == "required" && val.Field(i).String() == "" {
-            return nil, errors.New(fmt.Sprintf("%s is a required field", fieldName))
-		}
 
 		var v interface{}
 		switch val.Field(i).Kind() {
@@ -225,13 +238,18 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 			v = val.Field(i).Float()
 		case reflect.String:
 			v = val.Field(i).String()
-		case reflect.Struct: // we need recursion to support potential future cases
-			// where we need to embed more request structs
+			if len(queryTag) > 1 && queryTag[1] == "required" {
+				// cannot be required and empty
+				if v == "" {
+					return nil, errors.New(fmt.Sprintf("uber: %s is a required field", fieldName))
+				}
+			}
+		case reflect.Struct:
 			supPayload, err := c.generateRequestUrlHelper(val.Field(i))
 			if err != nil {
 				return nil, err
 			}
-			// avoids nil field on struct (ie res)
+			// avoids nil field on struct (eg res)
 			if len(supPayload) == 0 {
 				continue
 			}
@@ -246,4 +264,28 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 	}
 
 	return payload, nil
+}
+
+// uberApiRequest is a shell data definition that is just used to document that
+// `Client.generateRequestUrl` takes a specific type of data
+type uberApiRequest interface{}
+
+func (err uberError) Error() string {
+	var uberErrBuff bytes.Buffer // because O(n) runtime, bitches
+	uberErrBuff.WriteString(fmt.Sprintf("Uber API: %s", err.Message))
+
+	// prints code if exists
+	if err.Code != "" {
+		uberErrBuff.WriteString(fmt.Sprintf("\nCode: %s", err.Code))
+	}
+
+	// prints erroneous fields
+	if err.Fields != nil {
+		uberErrBuff.WriteString("\nFields:")
+		for k, v := range err.Fields {
+			uberErrBuff.WriteString(fmt.Sprintf("\n\t%s: %v", k, v))
+		}
+	}
+
+	return uberErrBuff.String()
 }
