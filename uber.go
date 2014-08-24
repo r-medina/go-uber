@@ -31,16 +31,24 @@ var UBER_API_ENDPOINT = fmt.Sprintf("http://api.uber.com/%s", VERSION)
 
 // Client stores the tokens needed to access the Uber api.
 // All methods of this package that hit said api are methods on this type.
+// TODO(asubiott): Abstract the OAuth 2.0 authentication process.
 type Client struct {
-	// TODO(asubiott): document these
+	// Your API token should be specified if your application will access the
+	// Products, Price Estimates, and Time Estimates endpoints.
 	serverToken string
+
+	// OAuth 2.0 bearer token necessary for the use of the User Activity and
+	// User Profile endpoints. It is the result of three step authentication
+	// outlined in https://developer.uber.com/v1/auth/#oauth-2-0. When procuring
+	// this token, keep in mind that you must specify the history scope if you
+	// intend to use the User Activity endpoint and the profile scope if you
+	// intend to use the User Profile endpoint.
 	accessToken string
 }
 
 // Creates a new client. When accessing a user's profile or activity an
 // access token must be specified with the correct scope. If these endpoints
 // are not needed, an empty string should be passed in.
-// TODO(asubiott): maybe this function should do the OAuth things
 func NewClient(serverToken, accessToken string) *Client {
 	return &Client{
 		serverToken: serverToken,
@@ -94,6 +102,7 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 // GetTimes returns ETAs for all products offered at a given location, with the responses
 // expressed as integers in seconds. We recommend that this endpoint be called every
 // minute to provide the most accurate, up-to-date ETAs.
+// TODO(asubiott): Specify that uuid and productId are optional.
 func (c *Client) GetTimes(startLat, startLon float64, uuid, productId string) ([]*Time, error) {
 	payload := timesReq{
 		startLatitude:  startLat,
@@ -130,11 +139,9 @@ func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
 // GetUserProfile returns information about the Uber user that has authorized with
 // the application.
 func (c *Client) GetUserProfile() (*User, error) {
-	// TODO(asubiott): Should there be a check for correct accessToken scope?
-	// This might be taken care of for us by the Uber API. It should return
-	// an error.
+	payload := userReq{}
 	user := new(User)
-	if err := c.get(USER_ENDPOINT, nil, user); err != nil {
+	if err := c.get(USER_ENDPOINT, payload, user); err != nil {
 		return nil, err
 	}
 
@@ -151,10 +158,10 @@ func (c *Client) get(endpoint string, payload uberApiRequest, out interface{}) e
 	}
 
 	res, err := c.sendRequestWithAuthorization(addr)
-	defer res.Body.Close()
 	if err != nil {
 		return err
 	}
+	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(out)
@@ -165,8 +172,8 @@ func (c *Client) get(endpoint string, payload uberApiRequest, out interface{}) e
 	return nil
 }
 
-// sendRequestWithAuthorization sends an HTTP GET request with an Authorization field
-// in the header containing the Client's access token.
+// sendRequestWithAuthorization sends an HTTP GET request with an Authorization
+// field in the header containing the Client's access token (bearer token).
 func (c *Client) sendRequestWithAuthorization(url string) (*http.Response, error) {
 	httpClient := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)

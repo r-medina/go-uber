@@ -11,6 +11,7 @@ import (
 var (
 	testClient      *Client
 	testServerToken = "some_token"
+	testAccessToken = "bearer_token"
 	testProducts    = []*Product{
 		&Product{
 			ProductId:   "1",
@@ -31,10 +32,50 @@ var (
 			SurgeMultiplier: 1.25,
 		},
 	}
+	testTimes = []*Time{
+		&Time{
+			ProductId:   "1",
+			DisplayName: "UberBLACK",
+			Estimate:    400,
+		},
+	}
+	testUserActivity = &UserActivity{
+		Offset: 0,
+		Limit:  2,
+		Count:  1,
+		History: []*Trip{
+			&Trip{
+				Uuid:        "7354db54-cc9b-4961-81f2-0094b8e2d215",
+				RequestTime: 1401884467,
+				ProductId:   "edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c",
+				Status:      "completed",
+				Distance:    0.0279562,
+				StartTime:   1401884646,
+				StartLocation: &Location{
+					Address:   "706 Mission St, San Francisco, CA",
+					Latitude:  37.7860099,
+					Longitude: -122.4025387,
+				},
+				EndTime: 1401884732,
+				EndLocation: &Location{
+					Address:   "1455 Market Street, San Francisco, CA",
+					Latitude:  37.7758179,
+					Longitude: -122.4180285,
+				},
+			},
+		},
+	}
+	testUserProfile = &User{
+		FirstName: "Uber",
+		LastName:  "Developer",
+		Email:     "developer@uber.com",
+		Picture:   "https://...",
+		PromoCode: "teypo",
+	}
 )
 
 func TestNewClient(t *testing.T) {
-	testClient = NewClient(testServerToken, "" /* Empty access_token */)
+	testClient = NewClient(testServerToken, testAccessToken)
 	if testClient.serverToken != testServerToken {
 		t.Fatal(fmt.Sprintf("Client.serverToken %s does not match %s", testClient.serverToken, testServerToken))
 	}
@@ -73,27 +114,51 @@ func getPricesHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func TestGetTimes(t *testing.T) {
-	t.Fatal("no test")
+	server := httptest.NewServer(http.HandlerFunc(getTimesHandler))
+	defer server.Close()
+	UBER_API_ENDPOINT = server.URL
+
+	_, err := testClient.GetTimes(123.0, 456.0, "" /* uuid */, "" /* productId */)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func getTimesHandler(rw http.ResponseWriter, req *http.Request) {
-
+	body, _ := json.Marshal(testTimes)
+	rw.Write(body)
 }
 
 func TestGetUserActivity(t *testing.T) {
-	t.Fatal("no test")
+	server := httptest.NewServer(http.HandlerFunc(getUserActivityHandler))
+	defer server.Close()
+	UBER_API_ENDPOINT = server.URL
+
+	_, err := testClient.GetUserActivity(0 /* offset */, 2 /* count */)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func getUserActivityHandler(rw http.ResponseWriter, req *http.Request) {
-
+	body, _ := json.Marshal(testUserActivity)
+	rw.Write(body)
 }
 
 func TestGetUserProfile(t *testing.T) {
-	t.Fatal("no test")
+	server := httptest.NewServer(http.HandlerFunc(getUserProfileHandler))
+	defer server.Close()
+	UBER_API_ENDPOINT = server.URL
+
+	_, err := testClient.GetUserProfile()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func getUserProfileHandler(rw http.ResponseWriter, req *http.Request) {
-
+	body, _ := json.Marshal(testUserProfile)
+	rw.Write(body)
 }
 
 func TestGet(t *testing.T) {
@@ -112,6 +177,5 @@ func TestGenerateRequestUrlHelper(t *testing.T) {
 	t.Fatal("no test")
 }
 
-// TODO: test `GetTimes`, `GetUserActivity`, `GetUserProfile`,
-// `get`, `sendRequestWithAuthorization`, `generateRequestUrl`, and
+// TODO: test `get`, `sendRequestWithAuthorization`, `generateRequestUrl`, and
 // `generateRequestUrlHelper`

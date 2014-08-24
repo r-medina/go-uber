@@ -197,3 +197,5 @@ type historyReq struct {
 	offset int `query:"offset,required"`
 	limit  int `query:"limit,required"`
 }
+
+type userReq struct{}
