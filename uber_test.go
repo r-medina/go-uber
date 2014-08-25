@@ -161,45 +161,76 @@ func getUserProfileHandler(rw http.ResponseWriter, req *http.Request) {
 	rw.Write(body)
 }
 
-func TestGet(t *testing.T) {
-	t.Fatal("no test")
-}
-
 func TestSendRequestWithAuthorization(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(sendRequestWithAuthorizationHandler))
-    defer server.Close()
+	defer server.Close()
 
-    // Send with only serverToken i.e. oauth is false
-    res, err := testClient.sendRequestWithAuthorization(server.URL, false);
-    if err != nil {
-        t.Fatal(err)
-    }
-    auth := res.Request.Header.Get("Authorization")
-    if auth == "" || auth != fmt.Sprintf("Token %s", testServerToken) {
-        t.Fatal("Server token not found in header")
-    }
+	// Send with only serverToken i.e. oauth is false
+	res, err := testClient.sendRequestWithAuthorization(server.URL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth := res.Request.Header.Get("Authorization")
+	if auth == "" || auth != fmt.Sprintf("Token %s", testServerToken) {
+		t.Fatal("Server token not found in header")
+	}
 
-    // Send with only accessToken i.e. oauth is true
-    res, err = testClient.sendRequestWithAuthorization(server.URL, true);
-    if err != nil {
-        t.Fatal(err)
-    }
-    auth = res.Request.Header.Get("Authorization")
-    if auth == "" || auth != fmt.Sprintf("Bearer %s", testAccessToken) {
-        t.Fatal("Access token not found in header")
-    }
+	// Send with only accessToken i.e. oauth is true
+	res, err = testClient.sendRequestWithAuthorization(server.URL, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth = res.Request.Header.Get("Authorization")
+	if auth == "" || auth != fmt.Sprintf("Bearer %s", testAccessToken) {
+		t.Fatal("Access token not found in header")
+	}
 }
 
 func sendRequestWithAuthorizationHandler(rw http.ResponseWriter, req *http.Request) {
-    rw.Write([]byte{0})
+	rw.Write([]byte{0})
 }
 
 func TestGenerateRequestUrl(t *testing.T) {
-	t.Fatal("no test")
-}
+	lat := 10.0
+	lon := 20.0
 
-func TestGenerateRequestUrlHelper(t *testing.T) {
-	t.Fatal("no test")
-}
+	// Generate normal url.
+	products := productsReq{
+		latitude:  lat,
+		longitude: lon,
+	}
 
-// TODO: test `get`, `generateRequestUrl`, and `generateRequestUrlHelper`
+	url, err := testClient.generateRequestUrl(PRICE_ENDPOINT, products)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedUrl := fmt.Sprintf("%s/%s?latitude=10&longitude=20", UBER_API_ENDPOINT, PRICE_ENDPOINT)
+	if url != expectedUrl {
+		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	}
+
+	// Generate url without query parameters.
+	url, err = testClient.generateRequestUrl(USER_ENDPOINT, userReq{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedUrl = fmt.Sprintf("%s/%s", UBER_API_ENDPOINT, USER_ENDPOINT)
+	if url != expectedUrl {
+		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	}
+
+	// Generate url with some optional query parameters.
+	times := timesReq{
+		startLatitude:  lat,
+		startLongitude: lon,
+	}
+
+	url, err = testClient.generateRequestUrl(TIME_ENDPOINT, times)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedUrl = fmt.Sprintf("%s/%s?start_latitude=10&start_longitude=20", UBER_API_ENDPOINT, TIME_ENDPOINT)
+	if url != expectedUrl {
+		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	}
+}

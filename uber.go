@@ -219,7 +219,11 @@ func (c *Client) generateRequestUrl(endpoint string, data uberApiRequest) (strin
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/%s?%s", UBER_API_ENDPOINT, endpoint, payload.Encode()), nil
+	queryParameters := payload.Encode()
+	if queryParameters != "" {
+		queryParameters = fmt.Sprintf("?%s", queryParameters)
+	}
+	return fmt.Sprintf("%s/%s%s", UBER_API_ENDPOINT, endpoint, queryParameters), nil
 }
 
 // generateRequestUrlHelper recursively checks `val` to generate the payload. Should
@@ -260,7 +264,9 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 			return nil, errors.New(fmt.Sprintf("%s is invalid", fieldName))
 		}
 
-		payload.Add(queryTag[0], fmt.Sprintf("%v", v))
+		if v != "" {
+			payload.Add(queryTag[0], fmt.Sprintf("%v", v))
+		}
 	}
 
 	return payload, nil
