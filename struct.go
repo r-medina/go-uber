@@ -1,5 +1,15 @@
 package uber
 
+// TODO(r-medina): doc
+// https://developer.uber.com/v1/auth/
+type access struct {
+	Token        string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
+}
+
 // Product type specifies an Uber product.
 // An Uber product refers to a specific type of car/service.
 type Product struct {
@@ -24,6 +34,11 @@ type Product struct {
 	Image string `json:"image"`
 }
 
+// TODO(r-medina): add doc
+type productsResp struct {
+	Products []*Product `json:"products"`
+}
+
 // Price contains information about a price estimate
 type Price struct {
 	// eg: "08f17084-23fd-4103-aa3e-9b660223934b"
@@ -43,16 +58,21 @@ type Price struct {
 
 	// The lowest value in the estimate for the given currency
 	// eg: 23
-	LowEstimate int `json:"low_estimate"`
+	LowEstimate int `json:"low_estimate,string"`
 
 	// The highest value in the estimate for the given currency
 	// eg: 29
-	HighEstimate int `json:"high_estimate"`
+	HighEstimate int `json:"high_estimate,string"`
 
 	// Uber price gouging factor
 	// http://www.technologyreview.com/review/529961/in-praise-of-efficient-price-gouging/
 	// eg: 1
 	SurgeMultiplier float64 `json:"surge_multiplier"`
+}
+
+// TODO(r-medina): add doc
+type pricesResp struct {
+	Prices []*Price `json:"prices"`
 }
 
 // Time contains information about the estimated time of arrival for a product at a
@@ -67,6 +87,11 @@ type Time struct {
 	// The ETA in seconds
 	// eg: 410, ie: 6 minutes and 50 seconds
 	Estimate int `json:"estimate"`
+}
+
+// TODO(r-medina): add doc
+type timesResp struct {
+	Times []*Time `json:"times"`
 }
 
 // Location contains a human-readable address as well as the exact coordinates of a location
@@ -110,7 +135,7 @@ type Trip struct {
 	Uuid string `json:"uuid"`
 
 	// Time in seconds
-	// TODO(rm): find out more about this
+	// TODO(r-medina): find out more about this
 	// eg: 1401884467
 	RequestTime int `json:"request_time"`
 
@@ -143,6 +168,8 @@ type Trip struct {
 	EndLocation *Location `json:"end_location"`
 }
 
+// User is the response from the /me endpoint. Provides information about the
+// authenticated users profile
 type User struct {
 	// eg: "Uber"
 	FirstName string `json:"first_name"`
@@ -162,18 +189,44 @@ type User struct {
 	PromoCode string `json:"promo_code"`
 }
 
+// TODO(r-medina): add doc
+type auth struct {
+	clientId     string `query:"client_id,required"`
+	clientSecret string `query:"-"`
+	redirectUri  string `query:"redirect_uri,required"`
+}
+
+// TODO(r-medina): add doc
+type authReq struct {
+	auth
+	responseType string `query:"response_type,required"`
+	scope        string `query:"scope"`
+	state        string `query:"state"`
+}
+
+// TODO(r-medina): add doc
+type accReq struct {
+	auth
+	clientSecret string `query:"client_secret,required"`
+	grantType    string `query:"grant_type,required"`
+	code         string `query:"code,required"`
+}
+
+// TODO(r-medina): add doc
 type productsReq struct {
 	latitude  float64 `query:"latitude,required"`
 	longitude float64 `query:"longitude,required"`
 }
 
+// TODO(r-medina): add doc
 type pricesReq struct {
 	startLatitude  float64 `query:"start_latitude,required"`
-	endLatitude    float64 `query:"end_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
+	endLatitude    float64 `query:"end_latitude,required"`
 	endLongitude   float64 `query:"end_longitude,required"`
 }
 
+// TODO(r-medina): add doc
 type timesReq struct {
 	startLatitude  float64 `query:"start_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
@@ -181,8 +234,7 @@ type timesReq struct {
 	productId      string  `query:"product_id"`
 }
 
-type userReq struct{}
-
+// TODO(r-medina): add doc
 type historyReq struct {
 	offset int `query:"offset,required"`
 	limit  int `query:"limit,required"`
@@ -202,5 +254,11 @@ type uberError struct {
 	// A hash of field names that have validations. This has a value of an array with
 	// member strings that describe the specific validation error
 	// eg: map{"first_name": ["Required"]}
-	Fields map[string][]string `json:"fields,omitempty"`
+	Fields map[string]string `json:"fields,omitempty"`
+}
+
+// TODO(r-medina): add doc
+type authError struct {
+	// https://developer.uber.com/v1/auth/
+	error string `json:"error"`
 }
