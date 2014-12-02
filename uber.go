@@ -18,22 +18,23 @@ import (
 )
 
 const (
-	VERSION          = "v1"
-	PRODUCT_ENDPOINT = "products"
-	PRICE_ENDPOINT   = "estimates/price"
-	TIME_ENDPOINT    = "estimates/time"
-	HISTORY_ENDPOINT = "history"
-	USER_ENDPOINT    = "me"
+	Version         = "v1"
+	ProductEndpoint = "products"
+	PriceEndpoint   = "estimates/price"
+	TimeEndpoint    = "estimates/time"
+	HistoryEndpoint = "history"
+	UserEndpoint    = "me"
 
 	// the next two use `AUTH_EDPOINT`
-	ACCESS_CODE_ENDPOINT  = "authorize"
-	ACCESS_TOKEN_ENDPOINT = "token"
+
+	AccessCodeEndpoint  = "authorize"
+	AccessTokenEndpoint = "token"
 )
 
 // declared as vars so that unit tests can edit the values and hit internal test server
 var (
-	UBER_API_HOST = fmt.Sprintf("https://api.uber.com/%s", VERSION)
-	AUTH_HOST     = "https://login.uber.com/oauth"
+	UberAPIHost = fmt.Sprintf("https://api.uber.com/%s", Version)
+	AuthHost    = "https://login.uber.com/oauth"
 )
 
 // Client stores the tokens needed to access the Uber api.
@@ -77,15 +78,15 @@ func NewClient(serverToken string) *Client {
 // returns the URL that the user needs to go to in order for Uber to authorize your
 // app and give you a authorization code.
 func (c *Client) OAuth(
-	clientId, clientSecret, redirect string, scope ...string,
+	clientID, clientSecret, redirect string, scope ...string,
 ) (string, error) {
 	c.auth = &auth{
-		clientId:     clientId,
+		clientID:     clientID,
 		clientSecret: clientSecret,
-		redirectUri:  redirect,
+		redirectURI:  redirect,
 	}
 
-	return c.generateRequestUrl(AUTH_HOST, ACCESS_CODE_ENDPOINT, authReq{
+	return c.generateRequestURL(AuthHost, AccessCodeEndpoint, authReq{
 		auth:         *c.auth,
 		responseType: "code",
 		scope:        strings.Join(scope, ","), // profile,history
@@ -96,7 +97,7 @@ func (c *Client) OAuth(
 // SetAccessToken completes the third step of the authorization process.
 // Once the user generates an authorization code
 func (c *Client) SetAccessToken(authorizationCode string) error {
-	payload, err := c.generateRequestUrlHelper(reflect.ValueOf(accReq{
+	payload, err := c.generateRequestURLHelper(reflect.ValueOf(accReq{
 		auth:         *c.auth,
 		clientSecret: c.auth.clientSecret, // added here for safety
 		grantType:    "authorization_code",
@@ -107,7 +108,7 @@ func (c *Client) SetAccessToken(authorizationCode string) error {
 	}
 
 	res, err := c.httpClient.PostForm(
-		fmt.Sprintf("%s/%s", AUTH_HOST, ACCESS_TOKEN_ENDPOINT), payload,
+		fmt.Sprintf("%s/%s", AuthHost, AccessTokenEndpoint), payload,
 	)
 	if err != nil {
 		return err
@@ -144,7 +145,7 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 	}
 
 	products := productsResp{}
-	if err := c.get(PRODUCT_ENDPOINT, payload, false, &products); err != nil {
+	if err := c.get(ProductEndpoint, payload, false, &products); err != nil {
 		return nil, err
 	}
 
@@ -169,7 +170,7 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 	}
 
 	prices := pricesResp{}
-	if err := c.get(PRICE_ENDPOINT, payload, false, &prices); err != nil {
+	if err := c.get(PriceEndpoint, payload, false, &prices); err != nil {
 		return nil, err
 	}
 
@@ -179,20 +180,20 @@ func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price
 // GetTimes returns ETAs for all products offered at a given location, with the responses
 // expressed as integers in seconds. We recommend that this endpoint be called every
 // minute to provide the most accurate, up-to-date ETAs.
-// The uuid and productId parameters can be empty strings. These provide
+// The uuid and productID parameters can be empty strings. These provide
 // additional experience customization.
 func (c *Client) GetTimes(
-	startLat, startLon float64, uuid, productId string,
+	startLat, startLon float64, uuid, productID string,
 ) ([]*Time, error) {
 	payload := timesReq{
 		startLatitude:  startLat,
 		startLongitude: startLon,
 		customerUuid:   uuid,
-		productId:      productId,
+		productID:      productID,
 	}
 
 	times := timesResp{}
-	if err := c.get(TIME_ENDPOINT, payload, false, &times); err != nil {
+	if err := c.get(TimeEndpoint, payload, false, &times); err != nil {
 		return nil, err
 	}
 
@@ -209,7 +210,7 @@ func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
 	}
 
 	userActivity := new(UserActivity)
-	if err := c.get(TIME_ENDPOINT, payload, true, userActivity); err != nil {
+	if err := c.get(TimeEndpoint, payload, true, userActivity); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +221,7 @@ func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
 // the application.
 func (c *Client) GetUserProfile() (*User, error) {
 	user := new(User)
-	if err := c.get(USER_ENDPOINT, nil, true, user); err != nil {
+	if err := c.get(UserEndpoint, nil, true, user); err != nil {
 		return nil, err
 	}
 
@@ -231,9 +232,9 @@ func (c *Client) GetUserProfile() (*User, error) {
 // Takes the endpoint, the query parameters, whether or not oauth should be used
 // and the data structure that the JSON response should be unmarshalled into.
 func (c *Client) get(
-	endpoint string, payload uberApiRequest, oauth bool, out interface{},
+	endpoint string, payload uberAPIRequest, oauth bool, out interface{},
 ) error {
-	url, err := c.generateRequestUrl(UBER_API_HOST, endpoint, payload)
+	url, err := c.generateRequestURL(UberAPIHost, endpoint, payload)
 	if err != nil {
 		return err
 	}
@@ -295,16 +296,16 @@ func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Res
 	return c.httpClient.Do(req)
 }
 
-// generateRequestUrl returns the appropriate a request url to the Uber api based on
+// generateRequestURL returns the appropriate a request url to the Uber api based on
 // the specified endpoint and the data passed in
-func (c *Client) generateRequestUrl(
-	base, endpoint string, data uberApiRequest,
+func (c *Client) generateRequestURL(
+	base, endpoint string, data uberAPIRequest,
 ) (string, error) {
 	var queryParameters string
 	if data == nil {
 		queryParameters = ""
 	} else {
-		payload, err := c.generateRequestUrlHelper(reflect.ValueOf(data))
+		payload, err := c.generateRequestURLHelper(reflect.ValueOf(data))
 		if err != nil {
 			return "", err
 		}
@@ -319,9 +320,9 @@ func (c *Client) generateRequestUrl(
 	return fmt.Sprintf("%s/%s%s", base, endpoint, queryParameters), nil
 }
 
-// generateRequestUrlHelper recursively checks `val` to generate the payload. Should
-// be used with caution. Only `Client.generateRequestUrl` calls this.
-func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error) {
+// generateRequestURLHelper recursively checks `val` to generate the payload. Should
+// be used with caution. Only `Client.generateRequestURL` calls this.
+func (c *Client) generateRequestURLHelper(val reflect.Value) (url.Values, error) {
 	payload := make(url.Values)
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := val.Type().Field(i).Name
@@ -345,7 +346,7 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 				}
 			}
 		case reflect.Struct:
-			supPayload, err := c.generateRequestUrlHelper(val.Field(i))
+			supPayload, err := c.generateRequestURLHelper(val.Field(i))
 			if err != nil {
 				return nil, err
 			}
@@ -368,9 +369,9 @@ func (c *Client) generateRequestUrlHelper(val reflect.Value) (url.Values, error)
 	return payload, nil
 }
 
-// uberApiRequest is a shell data definition that is just used to document that
-// `Client.generateRequestUrl` takes a specific type of data
-type uberApiRequest interface{}
+// uberAPIRequest is a shell data definition that is just used to document that
+// `Client.generateRequestURL` takes a specific type of data
+type uberAPIRequest interface{}
 
 // TODO(r-medina): add doc
 func (err uberError) Error() string {
