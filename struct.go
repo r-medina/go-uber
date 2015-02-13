@@ -80,11 +80,11 @@ type Price struct {
 
 	// The lowest value in the estimate for the given currency
 	// eg: 23
-	LowEstimate int `json:"low_estimate,string"`
+	LowEstimate int `json:"low_estimate"`
 
 	// The highest value in the estimate for the given currency
 	// eg: 29
-	HighEstimate int `json:"high_estimate,string"`
+	HighEstimate int `json:"high_estimate"`
 
 	// Uber price gouging factor
 	// http://www.technologyreview.com/review/529961/in-praise-of-efficient-price-gouging/
@@ -281,5 +281,5 @@ type uberError struct {
 // TODO(r-medina): add doc
 type authError struct {
 	// https://developer.uber.com/v1/auth/
-	error string `json:"error"`
+	ErrorString string `json:"error"`
 }

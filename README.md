@@ -34,16 +34,16 @@ Currently, the Uber API offers support for requesting information about products
 For more information about using this library, view the [Godocs](http://godoc.org/github.com/r-medina/go-uber).
 
 ```go
-products, err := c.GetProducts(37.7759792, -122.41823)
+products, err := client.GetProducts(37.7759792, -122.41823)
 if err != nil {
 	fmt.Println(err)
 } else {
-	for _, product := range productss {
+	for _, product := range products {
 		fmt.Println(*product)
 	}
 }
 
-prices, err := c.GetPrices(41.827896, 41.826025, -71.393034, -71.406892)
+prices, err := client.GetPrices(41.827896, 41.826025, -71.393034, -71.406892)
 if err != nil {
 	fmt.Println(err)
 } else {
@@ -54,10 +54,13 @@ if err != nil {
 ```
 ## Authorizing
 
-Uber's OAuth 2.0 flow requires the user go to URL they provide. As of right now, after the user authorizes the app, there is no elegant way to get it into the client, but we're working on it.
+Uber's OAuth 2.0 flow requires the user go to URL they provide.
+
+You can generate this URL programatically by doing:
+
 
 ```go
-url, _ := c.OAuth(
+url, _ := client.OAuth(
 	CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, "profile",
 )
 ```
@@ -65,7 +68,15 @@ url, _ := c.OAuth(
 After the user goes to `url` and grants your application permissions, you need to figure out a way for the user to input the second argument of the url to which they are redirected (ie: `REDIRECT_URL/?state=go-uber&code=AUTH_CODE`). You then need to
 
 ```go
-c.SetAccessToken(AUTH_CODE)
+client.SetAccessToken(AUTH_CODE)
+```
+
+Or you can automate the whole process by:
+
+```go
+err := client.AutOAuth(
+	CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, "profile",
+)
 ```
 
 At which point, feel free to

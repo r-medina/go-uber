@@ -15,6 +15,8 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+
+	"github.com/skratchdot/open-golang/open"
 )
 
 const (
@@ -29,6 +31,9 @@ const (
 
 	AccessCodeEndpoint  = "authorize"
 	AccessTokenEndpoint = "token"
+
+	State = "go-uber"
+	Port  = ":7635"
 )
 
 // declared as vars so that unit tests can edit the values and hit internal test server
@@ -90,8 +95,58 @@ func (c *Client) OAuth(
 		auth:         *c.auth,
 		responseType: "code",
 		scope:        strings.Join(scope, ","), // profile,history
-		state:        "go-uber",
+		state:        State,
 	})
+}
+
+// AutOAuth automatically does the authorization flow by opening the user's browser,
+// asking them to authorize, then booting up a server to deal with the user's redirect and
+// authorizing your client.
+func (c *Client) AutOAuth(
+	clientID, clientSecret, redirect string, scope ...string,
+) error {
+	urlString, err := c.OAuth(clientID, clientSecret, redirect, scope...)
+	if err != nil {
+		return nil
+	}
+
+	httpDone := make(chan struct{})
+	httpErr := make(chan error)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		state := r.URL.Query().Get("state")
+		if state != State {
+			httpErr <- fmt.Errorf("uber: evidence of tampering--incorrect state %s", state)
+		}
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			httpErr <- errors.New("uber: an unidentified error occured")
+		}
+
+		err = c.SetAccessToken(code)
+		if err != nil {
+			httpErr <- err
+		}
+
+		fmt.Fprintf(w, `<script type="text/javascript\">close()</script>
+you may close this webpage`)
+		close(httpDone)
+	})
+
+	go func() {
+		httpErr <- http.ListenAndServe(Port, nil)
+	}()
+
+	err = open.Run(urlString)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case err := <-httpErr:
+		return err
+	case <-httpDone:
+		return nil
+	}
 }
 
 // SetAccessToken completes the third step of the authorization process.
@@ -134,7 +189,7 @@ func (c *Client) SetAccessToken(authorizationCode string) error {
 	return authErr
 }
 
-// GetPoducts returns information about the Uber products offered at a
+// GetProducts returns information about the Uber products offered at a
 // given location. The response includes the display name and other details about
 // each product, and lists the products in the proper display order.
 // https://developer.uber.com/v1/endpoints/#product-types
@@ -200,7 +255,7 @@ func (c *Client) GetTimes(
 	return times.Times, nil
 }
 
-// GetHistory returns data about a user's lifetime activity with Uber. The response
+// GetUserActivity returns data about a user's lifetime activity with Uber. The response
 // will include pickup locations and times, dropoff locations and times, the distance
 // of past requests, and information about which products were requested.
 func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
@@ -396,5 +451,5 @@ func (err uberError) Error() string {
 
 // TODO(r-medina): add doc
 func (err authError) Error() string {
-	return fmt.Sprintf("Authentication: %s", err.error)
+	return fmt.Sprintf("Authentication: %s", err.ErrorString)
 }
