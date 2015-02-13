@@ -60,7 +60,7 @@ type Client struct {
 	// An http.Client is needed to make requests to the API as well as do the
 	// authentication. Rather than instantiate a new client on each request, we
 	// memoize it here, as it will always be used.
-	httpClient *http.Client
+	HttpClient *http.Client
 
 	// TODO(r-medina): add doc
 	*auth
@@ -74,7 +74,7 @@ func NewClient(serverToken string) *Client {
 	return &Client{
 		serverToken: serverToken,
 		access:      new(access),
-		httpClient:  new(http.Client),
+		HttpClient:  new(http.Client),
 	}
 }
 
@@ -162,7 +162,7 @@ func (c *Client) SetAccessToken(authorizationCode string) error {
 		return err
 	}
 
-	res, err := c.httpClient.PostForm(
+	res, err := c.HttpClient.PostForm(
 		fmt.Sprintf("%s/%s", AuthHost, AccessTokenEndpoint), payload,
 	)
 	if err != nil {
@@ -348,7 +348,7 @@ func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Res
 
 	req.Header.Set("authorization", auth)
 
-	return c.httpClient.Do(req)
+	return c.HttpClient.Do(req)
 }
 
 // generateRequestURL returns the appropriate a request url to the Uber api based on
