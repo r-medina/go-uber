@@ -1,13 +1,34 @@
 package uber
 
-// TODO(r-medina): doc
+// access is returned from `AccessTokenEndpoint`
+// See comment for `Client.access`
 // https://developer.uber.com/v1/auth/
 type access struct {
-	Token        string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
+	// access_token result of three-legged OAuth 2.0 flow
+	// Needed to make requests on behalf of a user
+	Token string `json:"access_token"`
+
+	// always "Bearer"
+	TokenType string `json:"token_type"`
+
+	// 30 days from request
+	ExpiresIn int `json:"expires_in"`
+
+	// When the user's access_token has expired, you may obtain a fresh access_token
+	// by exchanging the refresh_token that is associated with the access_token
 	RefreshToken string `json:"refresh_token"`
-	Scope        string `json:"scope"`
+
+	// During the registration process, you'll be prompted to select the scopes your
+	// application needs. You can also edit these preferences or add new scopes at a
+	// later time. Users will be asked to grant permission for your application's
+	// specific scopes when they authenticate.
+	//
+	// `profile` - Access the basic profile information on a user's Uber account
+	// including their first name, email address, and profile picture.
+	//
+	// `history` - Pull trip data including the locations, times, and product type of
+	// a user's historical pickups and drop-offs.
+	Scope string `json:"scope"`
 }
 
 // Product type specifies an Uber product.
@@ -17,7 +38,7 @@ type Product struct {
 	// longitude. For example, uberX in San Francisco will have a different
 	// product_id than uberX in Los Angeles.
 	// eg: "327f7914-cd12-4f77-9e0c-b27bac580d03"
-	ProductId string `json:"product_id"`
+	ProductID string `json:"product_id"`
 
 	// Description of product
 	// eg: "The original Uber"
@@ -34,7 +55,8 @@ type Product struct {
 	Image string `json:"image"`
 }
 
-// TODO(r-medina): add doc
+// productsResp is the type that is returned from the `ProductEndpoint`
+// This data definition is needed so that unmarshalling can actually happen
 type productsResp struct {
 	Products []*Product `json:"products"`
 }
@@ -42,7 +64,7 @@ type productsResp struct {
 // Price contains information about a price estimate
 type Price struct {
 	// eg: "08f17084-23fd-4103-aa3e-9b660223934b"
-	ProductId string `json:"product_id"`
+	ProductID string `json:"product_id"`
 
 	// ISO 4217 currency code for situations requiring currency conversion
 	// eg: "USD"
@@ -58,11 +80,11 @@ type Price struct {
 
 	// The lowest value in the estimate for the given currency
 	// eg: 23
-	LowEstimate int `json:"low_estimate,string"`
+	LowEstimate int `json:"low_estimate"`
 
 	// The highest value in the estimate for the given currency
 	// eg: 29
-	HighEstimate int `json:"high_estimate,string"`
+	HighEstimate int `json:"high_estimate"`
 
 	// Uber price gouging factor
 	// http://www.technologyreview.com/review/529961/in-praise-of-efficient-price-gouging/
@@ -70,7 +92,8 @@ type Price struct {
 	SurgeMultiplier float64 `json:"surge_multiplier"`
 }
 
-// TODO(r-medina): add doc
+// pricesResp is the type that is returned from the `PriceEndpoint`
+// This data definition is needed so that unmarshalling can actually happen
 type pricesResp struct {
 	Prices []*Price `json:"prices"`
 }
@@ -79,7 +102,7 @@ type pricesResp struct {
 // given location in seconds
 type Time struct {
 	// eg: "5f41547d-805d-4207-a297-51c571cf2a8c"
-	ProductId string `json:"product_id"`
+	ProductID string `json:"product_id"`
 
 	// eg: "UberBLACK"
 	DisplayName string `json:"display_name"`
@@ -89,7 +112,8 @@ type Time struct {
 	Estimate int `json:"estimate"`
 }
 
-// TODO(r-medina): add doc
+// pricesResp is the type that is returned from the `PriceEndpoint`
+// This data definition is needed so that unmarshalling can actually happen
 type timesResp struct {
 	Times []*Time `json:"times"`
 }
@@ -135,12 +159,11 @@ type Trip struct {
 	Uuid string `json:"uuid"`
 
 	// Time in seconds
-	// TODO(r-medina): find out more about this
 	// eg: 1401884467
 	RequestTime int `json:"request_time"`
 
 	// eg: edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c
-	ProductId string `json:"product_id"`
+	ProductID string `json:"product_id"`
 
 	// String depicting the status of the trip. Don't know what values these could take
 	// because the website only shows "completed"
@@ -152,7 +175,6 @@ type Trip struct {
 	Distance float64 `json:"distance"`
 
 	// Start time of trip
-	// See TODO for `RequestTime`
 	// eg: 1401884646
 	StartTime int `json:"start_time"`
 
@@ -160,7 +182,6 @@ type Trip struct {
 	StartLocation *Location `json:"start_location"`
 
 	// Start time of trip
-	// See TODO for `RequestTime`
 	// eg: 1401884732
 	EndTime int `json:"end_time"`
 
@@ -191,9 +212,9 @@ type User struct {
 
 // TODO(r-medina): add doc
 type auth struct {
-	clientId     string `query:"client_id,required"`
+	clientID     string `query:"client_id,required"`
 	clientSecret string `query:"-"`
-	redirectUri  string `query:"redirect_uri,required"`
+	redirectURI  string `query:"redirect_uri,required"`
 }
 
 // TODO(r-medina): add doc
@@ -231,7 +252,7 @@ type timesReq struct {
 	startLatitude  float64 `query:"start_latitude,required"`
 	startLongitude float64 `query:"start_longitude,required"`
 	customerUuid   string  `query:"customer_uuid"`
-	productId      string  `query:"product_id"`
+	productID      string  `query:"product_id"`
 }
 
 // TODO(r-medina): add doc
@@ -260,5 +281,5 @@ type uberError struct {
 // TODO(r-medina): add doc
 type authError struct {
 	// https://developer.uber.com/v1/auth/
-	error string `json:"error"`
+	ErrorString string `json:"error"`
 }

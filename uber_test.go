@@ -16,7 +16,7 @@ var (
 	testProducts    = map[string][]*Product{
 		"products": []*Product{
 			&Product{
-				ProductId:   "1",
+				ProductID:   "1",
 				Description: "The Original Uber",
 				DisplayName: "UberBLACK",
 				Capacity:    4,
@@ -27,7 +27,7 @@ var (
 	testPrices = map[string][]*Price{
 		"prices": []*Price{
 			&Price{
-				ProductId:       "1",
+				ProductID:       "1",
 				CurrencyCode:    "USD",
 				DisplayName:     "UberBlack",
 				Estimate:        "$23-29",
@@ -40,7 +40,7 @@ var (
 	testTimes = map[string][]*Time{
 		"times": []*Time{
 			&Time{
-				ProductId:   "1",
+				ProductID:   "1",
 				DisplayName: "UberBLACK",
 				Estimate:    400,
 			},
@@ -54,7 +54,7 @@ var (
 			&Trip{
 				Uuid:        "7354db54-cc9b-4961-81f2-0094b8e2d215",
 				RequestTime: 1401884467,
-				ProductId:   "edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c",
+				ProductID:   "edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c",
 				Status:      "completed",
 				Distance:    0.0279562,
 				StartTime:   1401884646,
@@ -98,7 +98,7 @@ func TestNewClient(t *testing.T) {
 func TestGetProducts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getProductsHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	_, err := testClient.GetProducts(123.0, 456.0)
 	if err != nil {
@@ -114,7 +114,7 @@ func getProductsHandler(rw http.ResponseWriter, req *http.Request) {
 func TestGetPrices(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getPricesHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	_, err := testClient.GetPrices(123.0, 456.0, 234.0, 567.0)
 	if err != nil {
@@ -130,7 +130,7 @@ func getPricesHandler(rw http.ResponseWriter, req *http.Request) {
 func TestGetTimes(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getTimesHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	_, err := testClient.GetTimes(123.0, 456.0, "" /* uuid */, "" /* productId */)
 	if err != nil {
@@ -146,7 +146,7 @@ func getTimesHandler(rw http.ResponseWriter, req *http.Request) {
 func TestGetUserActivity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getUserActivityHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	_, err := testClient.GetUserActivity(0 /* offset */, 2 /* count */)
 	if err != nil {
@@ -162,7 +162,7 @@ func getUserActivityHandler(rw http.ResponseWriter, req *http.Request) {
 func TestGetUserProfile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getUserProfileHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	_, err := testClient.GetUserProfile()
 	if err != nil {
@@ -179,7 +179,7 @@ func getUserProfileHandler(rw http.ResponseWriter, req *http.Request) {
 func TestGet(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(getHandler))
 	defer server.Close()
-	UBER_API_HOST = server.URL
+	UberAPIHost = server.URL
 
 	out := new(map[string]interface{})
 	if err := testClient.get("", struct{}{}, false, out); err != nil {
@@ -225,7 +225,7 @@ func getHandler(rw http.ResponseWriter, req *http.Request) {
 // 	rw.Write([]byte{0})
 // }
 
-func TestGenerateRequestUrl(t *testing.T) {
+func TestGenerateRequestURL(t *testing.T) {
 	lat := 10.0
 	lon := 20.0
 
@@ -235,23 +235,23 @@ func TestGenerateRequestUrl(t *testing.T) {
 		longitude: lon,
 	}
 
-	url, err := testClient.generateRequestUrl(UBER_API_HOST, PRICE_ENDPOINT, products)
+	url, err := testClient.generateRequestURL(UberAPIHost, PriceEndpoint, products)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedUrl := fmt.Sprintf("%s/%s?latitude=10&longitude=20", UBER_API_HOST, PRICE_ENDPOINT)
-	if url != expectedUrl {
-		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	expectedURL := fmt.Sprintf("%s/%s?latitude=10&longitude=20", UberAPIHost, PriceEndpoint)
+	if url != expectedURL {
+		t.Fatal(fmt.Sprintf("URL generation failed: Expected %s, got %s", expectedURL, url))
 	}
 
 	// Generate url without query parameters.
-	url, err = testClient.generateRequestUrl(UBER_API_HOST, USER_ENDPOINT, nil)
+	url, err = testClient.generateRequestURL(UberAPIHost, UserEndpoint, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedUrl = fmt.Sprintf("%s/%s", UBER_API_HOST, USER_ENDPOINT)
-	if url != expectedUrl {
-		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	expectedURL = fmt.Sprintf("%s/%s", UberAPIHost, UserEndpoint)
+	if url != expectedURL {
+		t.Fatal(fmt.Sprintf("URL generation failed: Expected %s, got %s", expectedURL, url))
 	}
 
 	// Generate url with some optional query parameters.
@@ -260,15 +260,15 @@ func TestGenerateRequestUrl(t *testing.T) {
 		startLongitude: lon,
 	}
 
-	url, err = testClient.generateRequestUrl(UBER_API_HOST, TIME_ENDPOINT, times)
+	url, err = testClient.generateRequestURL(UberAPIHost, TimeEndpoint, times)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedUrl = fmt.Sprintf(
+	expectedURL = fmt.Sprintf(
 		"%s/%s?start_latitude=10&start_longitude=20",
-		UBER_API_HOST, TIME_ENDPOINT,
+		UberAPIHost, TimeEndpoint,
 	)
-	if url != expectedUrl {
-		t.Fatal(fmt.Sprintf("Url generation failed: Expected %s, got %s", expectedUrl, url))
+	if url != expectedURL {
+		t.Fatal(fmt.Sprintf("URL generation failed: Expected %s, got %s", expectedURL, url))
 	}
 }
