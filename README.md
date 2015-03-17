@@ -43,7 +43,7 @@ if err != nil {
 	}
 }
 
-prices, err := client.GetPrices(41.827896, 41.826025, -71.393034, -71.406892)
+prices, err := client.GetPrices(41.827896, -71.393034, 41.826025, -71.406892)
 if err != nil {
 	fmt.Println(err)
 } else {

@@ -219,8 +219,8 @@ func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
 func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price, error) {
 	payload := pricesReq{
 		startLatitude:  startLat,
-		endLatitude:    startLon,
-		startLongitude: endLat,
+		startLongitude: startLon,
+		endLatitude:    endLat,
 		endLongitude:   endLon,
 	}
 
