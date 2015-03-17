@@ -1,4 +1,3 @@
-// TODO(r-medina): integration testing + more testing in general
 package uber
 
 import (
@@ -185,8 +184,6 @@ func TestGet(t *testing.T) {
 	if err := testClient.get("", struct{}{}, false, out); err != nil {
 		t.Fatal(err)
 	}
-
-	fmt.Println(out)
 }
 
 func getHandler(rw http.ResponseWriter, req *http.Request) {
