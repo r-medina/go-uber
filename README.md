@@ -6,6 +6,10 @@ Golang bindings for [Uber API](https://developer.uber.com/v1/endpoints/)
 [![Build Status](https://travis-ci.org/r-medina/go-uber.png)](https://travis-ci.org/r-medina/go-uber)
 [![GoDoc](https://godoc.org/github.com/r-medina/go-uber?status.svg)](https://godoc.org/github.com/r-medina/go-uber)
 
+# Documentation
+
+For more information about using this library, view the [Godocs](http://godoc.org/github.com/r-medina/go-uber).
+
 # Usage
 
 ## Register Your Application
@@ -19,7 +23,7 @@ In turn you will receive a `client_id`, `secret`, and `server_token`.
 package main
 
 import (
-  "github.com/r-medina/go-uber"
+  uber "github.com/r-medina/go-uber"
 )
 
 func main() {
@@ -30,8 +34,6 @@ func main() {
 ## Making Requests
 
 Currently, the Uber API offers support for requesting information about products (e.g available cars), price estimates, time estimates, user ride history, and user info. All requests require a valid `server_token`. Requests that require latitude or longitude as arguments are float64's (and should be valid lat/lon's).
-
-For more information about using this library, view the [Godocs](http://godoc.org/github.com/r-medina/go-uber).
 
 ```go
 products, err := client.GetProducts(37.7759792, -122.41823)
@@ -82,7 +84,7 @@ err := client.AutOAuth(
 At which point, feel free to
 
 ```go
-profile, err := c.GetUserProfile()
+profile, err := client.GetUserProfile()
 if err != nil {
 	fmt.Println(err)
 } else {

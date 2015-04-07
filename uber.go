@@ -1,31 +1,38 @@
-// Package uber provides an api client for the Uber api.
-// It exposes methods to get information about Uber products,
-// estimates, times, and users.
-//
-// A lot of documentation will be pulled directly from
-// https://developer.uber.com/v1/endpoints
 package uber
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
-	"reflect"
-	"strings"
-
-	"github.com/skratchdot/open-golang/open"
 )
 
 const (
 	Version         = "v1"
+	RequestEndpoint = "requests"
 	ProductEndpoint = "products"
 	PriceEndpoint   = "estimates/price"
 	TimeEndpoint    = "estimates/time"
 	HistoryEndpoint = "history"
 	UserEndpoint    = "me"
+
+	// request statuses
+
+	// The `Request` is matching to the most efficient available driver.
+	StatusProcessing = "processing"
+	// The `Request` was unfulfilled because no drivers were available.
+	StatusNoDrivers = "no_drivers_available"
+	// The `Request` has been accepted by a driver and is "en route" to the
+	// start_location.
+	StatusAccepted = "accepted"
+	// The driver has arrived or will be shortly.
+	StatusArriving = "arriving"
+	// The `Request` is "en route" from the start location to the end location.
+	StatusInProgress = "in_progress"
+	// The `Request` has been canceled by the driver.
+	StatusDriverCanceled = "driver_canceled"
+	// The `Request` has been canceled by the rider.
+	StatusRiderCanceled = "rider_canceled"
+	// The `Request` has been completed by the driver.
+	StatusCompleted = "completed"
 
 	// the next two use `AUTH_EDPOINT`
 
@@ -40,395 +47,225 @@ const (
 var (
 	UberAPIHost = fmt.Sprintf("https://api.uber.com/%s", Version)
 	AuthHost    = "https://login.uber.com/oauth"
+
+	UberSandboxAPIHost = fmt.Sprintf("https://sandbox-api.uber.com/%s/sandbox", Version)
 )
 
-// Client stores the tokens needed to access the Uber api.
-// All methods of this package that hit said api are methods on this type.
-type Client struct {
-	// Your API token should be specified if your application will access the
-	// Products, Price Estimates, and Time Estimates endpoints.
-	serverToken string
-
-	// OAuth 2.0 bearer token necessary for the use of the User Activity and
-	// User Profile endpoints. It is the result of three step authentication
-	// outlined in https://developer.uber.com/v1/auth/#oauth-2-0. When procuring
-	// this token, keep in mind that you must specify the history scope if you
-	// intend to use the User Activity endpoint and the profile scope if you
-	// intend to use the User Profile endpoint.
-	*access
-
-	// An http.Client is needed to make requests to the API as well as do the
-	// authentication. Rather than instantiate a new client on each request, we
-	// memoize it here, as it will always be used.
-	HttpClient *http.Client
-
-	// TODO(r-medina): add doc
-	*auth
-}
-
-// NewClient creates a new client. The serverToken is your API token provided by Uber.
-// When accessing a user's profile or activity a serverToken is not enough and an
-// accessToken must be specified with the correct scope.
-// To access those endpoints, use `*Client.OAuth()`
-func NewClient(serverToken string) *Client {
-	return &Client{
-		serverToken: serverToken,
-		access:      new(access),
-		HttpClient:  new(http.Client),
-	}
-}
-
-// OAuth begins the authorization process with Uber. There's no way to do this
-// strictly programatically because of the multi-step OAuth process.  This method
-// returns the URL that the user needs to go to in order for Uber to authorize your
-// app and give you a authorization code.
-func (c *Client) OAuth(
-	clientID, clientSecret, redirect string, scope ...string,
-) (string, error) {
-	c.auth = &auth{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		redirectURI:  redirect,
-	}
-
-	return c.generateRequestURL(AuthHost, AccessCodeEndpoint, authReq{
-		auth:         *c.auth,
-		responseType: "code",
-		scope:        strings.Join(scope, ","), // profile,history
-		state:        State,
-	})
-}
-
-// AutOAuth automatically does the authorization flow by opening the user's browser,
-// asking them to authorize, then booting up a server to deal with the user's redirect and
-// authorizing your client.
-func (c *Client) AutOAuth(
-	clientID, clientSecret, redirect string, scope ...string,
-) error {
-	urlString, err := c.OAuth(clientID, clientSecret, redirect, scope...)
-	if err != nil {
-		return nil
-	}
-
-	httpDone := make(chan struct{})
-	httpErr := make(chan error)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		state := r.URL.Query().Get("state")
-		if state != State {
-			httpErr <- fmt.Errorf("uber: evidence of tampering--incorrect state %s", state)
-		}
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			httpErr <- errors.New("uber: an unidentified error occured")
-		}
-
-		err = c.SetAccessToken(code)
-		if err != nil {
-			httpErr <- err
-		}
-
-		fmt.Fprintf(w, `<script type="text/javascript\">close()</script>
-you may close this webpage`)
-		close(httpDone)
-	})
-
-	go func() {
-		httpErr <- http.ListenAndServe(Port, nil)
-	}()
-
-	err = open.Run(urlString)
-	if err != nil {
-		return err
-	}
-
-	select {
-	case err := <-httpErr:
-		return err
-	case <-httpDone:
-		return nil
-	}
-}
-
-// SetAccessToken completes the third step of the authorization process.
-// Once the user generates an authorization code
-func (c *Client) SetAccessToken(authorizationCode string) error {
-	payload, err := c.generateRequestURLHelper(reflect.ValueOf(accReq{
-		auth:         *c.auth,
-		clientSecret: c.auth.clientSecret, // added here for safety
-		grantType:    "authorization_code",
-		code:         authorizationCode,
-	}))
-	if err != nil {
-		return err
-	}
-
-	res, err := c.HttpClient.PostForm(
-		fmt.Sprintf("%s/%s", AuthHost, AccessTokenEndpoint), payload,
-	)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	decoder := json.NewDecoder(res.Body)
-
-	if res.StatusCode == http.StatusOK {
-		access := access{}
-		if err := decoder.Decode(&access); err != nil {
-			return err
-		}
-
-		if access.TokenType == "Bearer" { // always true
-			c.access = &access
-			return nil
-		}
-	}
-
-	authErr := new(authError)
-	decoder.Decode(authErr)
-	return authErr
-}
-
-// GetProducts returns information about the Uber products offered at a
-// given location. The response includes the display name and other details about
-// each product, and lists the products in the proper display order.
-// https://developer.uber.com/v1/endpoints/#product-types
-func (c *Client) GetProducts(lat, lon float64) ([]*Product, error) {
-	payload := productsReq{
-		latitude:  lat,
-		longitude: lon,
-	}
-
-	products := productsResp{}
-	if err := c.get(ProductEndpoint, payload, false, &products); err != nil {
-		return nil, err
-	}
-
-	return products.Products, nil
-}
-
-// GetPrices returns an estimated price range for each product offered at a given
-// location. The price estimate is provided as a formatted string with the full price
-// range and the localized currency symbol.
 //
-// The response also includes low and high estimates, and the ISO 4217 currency code
-// for situations requiring currency conversion. When surge is active for a
-// particular product, its surge_multiplier will be greater than 1, but the price
-// estimate already factors in this multiplier.
-// https://developer.uber.com/v1/endpoints/#price-estimates
-func (c *Client) GetPrices(startLat, startLon, endLat, endLon float64) ([]*Price, error) {
-	payload := pricesReq{
-		startLatitude:  startLat,
-		startLongitude: startLon,
-		endLatitude:    endLat,
-		endLongitude:   endLon,
-	}
+// exported types
+//
 
-	prices := pricesResp{}
-	if err := c.get(PriceEndpoint, payload, false, &prices); err != nil {
-		return nil, err
-	}
-
-	return prices.Prices, nil
+// Request contains the information relating to a request for an Uber done on behalf of a
+// user.
+type Request struct {
+	RequestID       string `json:"request_id"`
+	Status          string `json:"status"`
+	Vehicle         `json:"vehicle"`
+	Driver          `json:"driver"`
+	Location        `json:"location"`
+	ETA             int     `json:"eta"`
+	SurgeMultiplier float64 `json:"surge_multiplier"`
 }
 
-// GetTimes returns ETAs for all products offered at a given location, with the responses
-// expressed as integers in seconds. We recommend that this endpoint be called every
-// minute to provide the most accurate, up-to-date ETAs.
-// The uuid and productID parameters can be empty strings. These provide
-// additional experience customization.
-func (c *Client) GetTimes(
-	startLat, startLon float64, uuid, productID string,
-) ([]*Time, error) {
-	payload := timesReq{
-		startLatitude:  startLat,
-		startLongitude: startLon,
-		customerUuid:   uuid,
-		productID:      productID,
-	}
-
-	times := timesResp{}
-	if err := c.get(TimeEndpoint, payload, false, &times); err != nil {
-		return nil, err
-	}
-
-	return times.Times, nil
+// Vehicle represents the car in a response to requesting a ride.
+type Vehicle struct {
+	Make         string `json:"make"`
+	Model        string `json:"model"`
+	LicensePlate string `json:"license_plate"`
+	PictureURL   string `json:"picture_url"`
 }
 
-// GetUserActivity returns data about a user's lifetime activity with Uber. The response
-// will include pickup locations and times, dropoff locations and times, the distance
-// of past requests, and information about which products were requested.
-func (c *Client) GetUserActivity(offset, limit int) (*UserActivity, error) {
-	payload := historyReq{
-		offset: offset,
-		limit:  limit,
-	}
-
-	userActivity := new(UserActivity)
-	if err := c.get(TimeEndpoint, payload, true, userActivity); err != nil {
-		return nil, err
-	}
-
-	return userActivity, nil
+// Driver represents an Uber driver.
+type Driver struct {
+	PhoneNumber string `json:"phone_number"`
+	Rating      int    `json:"rating"`
+	PictureURL  string `json:"picture_url"`
+	Name        string `json:"name"`
 }
 
-// GetUserProfile returns information about the Uber user that has authorized with
-// the application.
-func (c *Client) GetUserProfile() (*User, error) {
-	user := new(User)
-	if err := c.get(UserEndpoint, nil, true, user); err != nil {
-		return nil, err
-	}
+// Product type specifies an Uber product.
+// An Uber product refers to a specific type of car/service.
+type Product struct {
+	// Unique identifier representing a specific product for a given latitude &
+	// longitude. For example, uberX in San Francisco will have a different
+	// product_id than uberX in Los Angeles.
+	// eg: "327f7914-cd12-4f77-9e0c-b27bac580d03"
+	ProductID string `json:"product_id"`
 
-	return user, nil
+	// Description of product
+	// eg: "The original Uber"
+	Description string `json:"description"`
+
+	// eg: "UberBLACK"
+	DisplayName string `json:"display_name"`
+
+	// eg: 4
+	Capacity int `json:"capacity"`
+
+	// A URI specifying the location of an image
+	// eg: "http://..."
+	Image string `json:"image"`
 }
 
-// get helps facilitate all the get requests to the Uber api.
-// Takes the endpoint, the query parameters, whether or not oauth should be used
-// and the data structure that the JSON response should be unmarshalled into.
-func (c *Client) get(
-	endpoint string, payload uberAPIRequest, oauth bool, out interface{},
-) error {
-	url, err := c.generateRequestURL(UberAPIHost, endpoint, payload)
-	if err != nil {
-		return err
-	}
+// Price contains information about a price estimate.
+type Price struct {
+	// eg: "08f17084-23fd-4103-aa3e-9b660223934b"
+	ProductID string `json:"product_id"`
 
-	res, err := c.sendRequestWithAuthorization(url, oauth)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
+	// ISO 4217 currency code for situations requiring currency conversion
+	// eg: "USD"
+	CurrencyCode string `json:"currency_code"`
 
-	decoder := json.NewDecoder(res.Body)
+	// eg: "UberBLACK"
+	DisplayName string `json:"display_name"`
 
-	// If the status code is non-2xx, generate the error
-	switch {
-	case res.StatusCode == http.StatusNotFound:
-		// should never, ever happen because we specify the endpoints
-		return &uberError{
-			Message: fmt.Sprintf("Endpoint '%s' not found.", endpoint),
-		}
-	case res.StatusCode >= 300:
-		decoder = json.NewDecoder(res.Body)
+	// Formatted string of estimate in local currency of the start location. Estimate
+	// could be a range, a single number (flat rate) or "Metered" for TAXI.
+	// eg: "$23-29"
+	Estimate string `json:"estimate"`
 
-		// no good way to do this with `http.Status...` codes ;o
-		uberErr := new(uberError)
-		if err := decoder.Decode(uberErr); err != nil {
-			return err
-		}
-		// the case where the Uber api didn't provide an UberError in the response
-		if uberErr == (&uberError{}) {
-			return errors.New("uber: an unidentified error occured")
-		}
-		return *uberErr
-	}
+	// The lowest value in the estimate for the given currency
+	// eg: 23
+	LowEstimate int `json:"low_estimate"`
 
-	err = decoder.Decode(out)
-	if err != nil {
-		return err
-	}
+	// The highest value in the estimate for the given currency
+	// eg: 29
+	HighEstimate int `json:"high_estimate"`
 
-	return nil
+	// Uber price gouging factor
+	// http://www.technologyreview.com/review/529961/in-praise-of-efficient-price-gouging/
+	// eg: 1
+	SurgeMultiplier float64 `json:"surge_multiplier"`
 }
 
-// sendRequestWithAuthorization sends an HTTP GET request with an Authorization
-// field in the header containing the Client's access token (bearer token) if
-// the oauth parameter is true and the server token (api token) if not.
-func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
+// Time contains information about the estimated time of arrival for a product at a
+// given location in seconds.
+type Time struct {
+	// eg: "5f41547d-805d-4207-a297-51c571cf2a8c"
+	ProductID string `json:"product_id"`
 
-	auth := fmt.Sprintf("Token %s", c.serverToken)
-	if oauth {
-		auth = fmt.Sprintf("Bearer %s", c.access.Token)
-	}
+	// eg: "UberBLACK"
+	DisplayName string `json:"display_name"`
 
-	req.Header.Set("authorization", auth)
-
-	return c.HttpClient.Do(req)
+	// The ETA in seconds
+	// eg: 410, ie: 6 minutes and 50 seconds
+	Estimate int `json:"estimate"`
 }
 
-// generateRequestURL returns the appropriate a request url to the Uber api based on
-// the specified endpoint and the data passed in
-func (c *Client) generateRequestURL(
-	base, endpoint string, data uberAPIRequest,
-) (string, error) {
-	var queryParameters string
-	if data == nil {
-		queryParameters = ""
-	} else {
-		payload, err := c.generateRequestURLHelper(reflect.ValueOf(data))
-		if err != nil {
-			return "", err
-		}
+// Location contains a human-readable address as well as the exact coordinates of a location.
+type Location struct {
+	// Human-readable address
+	// eg: "706 Mission St, San Francisco, CA"
+	Address string `json:"address,omitempty"`
 
-		queryParameters = payload.Encode()
-	}
+	// eg: 37.7860099
+	Latitude float64 `json:"latitude"`
 
-	if queryParameters != "" {
-		queryParameters = fmt.Sprintf("?%s", queryParameters)
-	}
-
-	return fmt.Sprintf("%s/%s%s", base, endpoint, queryParameters), nil
+	// eg: -122.4025387
+	Longitude float64 `json:"longitude"`
 }
 
-// generateRequestURLHelper recursively checks `val` to generate the payload. Should
-// be used with caution. Only `Client.generateRequestURL` calls this.
-func (c *Client) generateRequestURLHelper(val reflect.Value) (url.Values, error) {
-	payload := make(url.Values)
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := val.Type().Field(i).Name
-		queryTag := strings.Split(val.Type().Field(i).Tag.Get("query"), ",")
-		if queryTag[0] == "-" {
-			continue
-		}
+// UserActivity contains data about a user's lifetime activity with Uber.
+type UserActivity struct {
+	// How much the list of returned results is offset by (position in pagination)
+	// eg: 0
+	Offset int `json:"offset"`
 
-		var v interface{}
-		switch val.Field(i).Kind() {
-		case reflect.Int:
-			v = val.Field(i).Int()
-		case reflect.Float64:
-			v = val.Field(i).Float()
-		case reflect.String:
-			v = val.Field(i).String()
-			if len(queryTag) > 1 && queryTag[1] == "required" {
-				// cannot be required and empty
-				if v == "" {
-					return nil, fmt.Errorf("uber: %s is a required field", fieldName)
-				}
-			}
-		case reflect.Struct:
-			supPayload, err := c.generateRequestURLHelper(val.Field(i))
-			if err != nil {
-				return nil, err
-			}
-			// avoids nil field on struct (eg res)
-			if len(supPayload) == 0 {
-				continue
-			}
-			for k, va := range supPayload {
-				payload.Add(k, va[0])
-			}
-		default:
-			return nil, fmt.Errorf("%s is invalid", fieldName)
-		}
+	// Number of items retrieved (that is, the length of `History` in this struct,
+	// but not the total length of the history)
+	// eg: 1
+	Limit int `json:"limit"`
 
-		if v != "" && queryTag[0] != "" {
-			payload.Add(queryTag[0], fmt.Sprintf("%v", v))
-		}
-	}
+	// Total number of items available
+	// eg: 5
+	Count int `json:"count"`
 
-	return payload, nil
+	// List of trips (see `Trip`)
+	History []*Trip `json:"history"`
 }
 
-// uberAPIRequest is a shell data definition that is just used to document that
-// `Client.generateRequestURL` takes a specific type of data
-type uberAPIRequest interface{}
+// Trip contains Information including the pickup location, dropoff location, request
+// start time, request end time, and distance of requests (in miles), as well as the
+// product type that was requested.
+type Trip struct {
+	// Customer UUID
+	// eg: "7354db54-cc9b-4961-81f2-0094b8e2d215"
+	Uuid string `json:"uuid"`
 
-// TODO(r-medina): add doc
+	// Time in seconds
+	// eg: 1401884467
+	RequestTime int `json:"request_time"`
+
+	// eg: edf5e5eb-6ae6-44af-bec6-5bdcf1e3ed2c
+	ProductID string `json:"product_id"`
+
+	// String depicting the status of the trip. Don't know what values these could take
+	// because the website only shows "completed"
+	// eg: "completed"
+	Status string `json:"status"`
+
+	// Distance of request in miles (presumable that of the customer to he nearest driver)
+	// eg: 0.0279562
+	Distance float64 `json:"distance"`
+
+	// Start time of trip
+	// eg: 1401884646
+	StartTime int `json:"start_time"`
+
+	// Self explanatory (see `Location`)
+	StartLocation *Location `json:"start_location"`
+
+	// Start time of trip
+	// eg: 1401884732
+	EndTime int `json:"end_time"`
+
+	// Self explanatory (see `Location`)
+	EndLocation *Location `json:"end_location"`
+}
+
+// User is the response from the /me endpoint. Provides information about the
+// authenticated users profile.
+type User struct {
+	// eg: "Uber"
+	FirstName string `json:"first_name"`
+
+	// eg: "Developer"
+	LastName string `json:"last_name"`
+
+	// eg: "developer@uber.com"
+	Email string `json:"email"`
+
+	// Image URI
+	// eg: "https://..."
+	Picture string `json:"picture"`
+
+	// Promotion code user has activated
+	// eg: "teypo"
+	PromoCode string `json:"promo_code"`
+}
+
+//
+// internal error types
+//
+
+// uberError implements the error interface (by defining an `Error() string` method).
+// This datatype is returned from the Uber API with non-2xx responses.
+type uberError struct {
+	// Human readable message which corresponds to the client error
+	// eg: "Invalid user"
+	Message string `json:"message"`
+
+	// Underscored delimited string
+	// eg: "invalid"
+	Code string `json:"code"`
+
+	// A hash of field names that have validations. This has a value of an array with
+	// member strings that describe the specific validation error
+	// eg: map{"first_name": ["Required"]}
+	Fields map[string]string `json:"fields,omitempty"`
+}
+
+// Error implements the `error` interface for `uberError`.
 func (err uberError) Error() string {
 	var uberErrBuff bytes.Buffer // because O(1) runtime, bitches
 	uberErrBuff.WriteString(fmt.Sprintf("Uber API: %s", err.Message))
@@ -447,9 +284,4 @@ func (err uberError) Error() string {
 	}
 
 	return uberErrBuff.String()
-}
-
-// TODO(r-medina): add doc
-func (err authError) Error() string {
-	return fmt.Sprintf("Authentication: %s", err.ErrorString)
 }
